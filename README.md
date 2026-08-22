@@ -1,4 +1,6 @@
-# vinext-starter
+# marketwatch-v1
+
+Stock market website, built as practice with Codex assistance.
 
 A clean full-stack starter running on
 [vinext](https://github.com/cloudflare/vinext), with optional Cloudflare D1 and
