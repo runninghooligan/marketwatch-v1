@@ -7,9 +7,7 @@ type IndexQuote = { symbol: string; name: string; value: number | null; changePe
 
 // Indices Basic supports aggregate data, but not /v3/snapshot/indices.
 const indexSymbols = [
-  { symbol: "I:SPX", name: "S&P 500" },
   { symbol: "I:NDX", name: "NASDAQ 100" },
-  { symbol: "I:DJI", name: "DOW" },
 ] as const;
 const cacheTtlMs = 55_000;
 let cached: { expiresAt: number; quotes: IndexQuote[] } | null = null;
