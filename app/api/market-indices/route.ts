@@ -2,32 +2,40 @@ import { NextResponse } from "next/server";
 
 export const dynamic = "force-dynamic";
 
-type MassiveIndex = { ticker?: string; name?: string; value?: number; timeframe?: string; last_updated?: number; session?: { change?: number; change_percent?: number; close?: number } };
-type IndexQuote = { symbol: string; name: string; value: number | null; changePercent: number | null; timeframe: string | null; updatedAt: number | null };
-const indexSymbols = ["I:SPX", "I:COMP", "I:DJI"] as const;
+type Aggregate = { c?: number; t?: number };
+type IndexQuote = { symbol: string; name: string; value: number | null; changePercent: number | null; timeframe: "previous_close" | null; updatedAt: number | null; error?: string };
+
+// Indices Basic supports aggregate data, but not /v3/snapshot/indices.
+const indexSymbols = [
+  { symbol: "I:SPX", name: "S&P 500" },
+  { symbol: "I:NDX", name: "NASDAQ 100" },
+  { symbol: "I:DJI", name: "DOW" },
+] as const;
 const cacheTtlMs = 55_000;
 let cached: { expiresAt: number; quotes: IndexQuote[] } | null = null;
-const emptyQuote = (symbol: string): IndexQuote => ({ symbol, name: symbol, value: null, changePercent: null, timeframe: null, updatedAt: null });
 
 export async function GET() {
   const now = Date.now();
   if (cached && cached.expiresAt > now) return NextResponse.json({ quotes: cached.quotes, cached: true, fetchedAt: now });
   const apiKey = process.env.MASSIVE_API_KEY;
-  if (!apiKey) return NextResponse.json({ error: "MASSIVE_API_KEY is not configured", quotes: indexSymbols.map(emptyQuote) }, { status: 503 });
-  // Three parallel snapshots per refresh; at one refresh/minute this is only 3 calls/minute.
-  const quotes = await Promise.all(indexSymbols.map(async (symbol) => {
+  if (!apiKey) return NextResponse.json({ error: "MASSIVE_API_KEY is not configured", quotes: indexSymbols.map(({ symbol, name }) => ({ symbol, name, value: null, changePercent: null, timeframe: null, updatedAt: null } satisfies IndexQuote)) }, { status: 503 });
+
+  const results = await Promise.all(indexSymbols.map(async ({ symbol, name }) => {
+    const url = new URL(`https://api.massive.com/v2/aggs/ticker/${encodeURIComponent(symbol)}/prev`);
+    url.searchParams.set("adjusted", "true");
+    url.searchParams.set("apiKey", apiKey);
     try {
-      const url = new URL("https://api.massive.com/v3/snapshot/indices");
-      url.searchParams.set("ticker", symbol);
-      url.searchParams.set("apiKey", apiKey);
       const response = await fetch(url, { cache: "no-store" });
-      if (!response.ok) throw new Error(`Massive returned ${response.status}`);
-      const payload = await response.json() as { results?: MassiveIndex[] };
-      const index = payload.results?.[0] ?? {};
-      const session = index.session ?? {};
-      return { symbol, name: index.name ?? symbol, value: index.value ?? session.close ?? null, changePercent: session.change_percent ?? null, timeframe: index.timeframe ?? null, updatedAt: index.last_updated ?? null } satisfies IndexQuote;
-    } catch { return emptyQuote(symbol); }
+      const payload = await response.json() as { results?: Aggregate[]; error?: string; message?: string };
+      if (!response.ok) throw new Error(payload.error ?? payload.message ?? `Massive returned ${response.status}`);
+      const bar = payload.results?.[0];
+      if (!bar?.c) throw new Error(payload.error ?? "No previous close returned");
+      return { symbol, name, value: bar.c, changePercent: null, timeframe: "previous_close", updatedAt: bar.t ?? null } satisfies IndexQuote;
+    } catch (error) {
+      return { symbol, name, value: null, changePercent: null, timeframe: null, updatedAt: null, error: error instanceof Error ? error.message : "Upstream request failed" } satisfies IndexQuote;
+    }
   }));
-  cached = { expiresAt: now + cacheTtlMs, quotes };
-  return NextResponse.json({ quotes, cached: false, fetchedAt: now }, { headers: { "Cache-Control": "public, max-age=55, stale-while-revalidate=10" } });
+  cached = { expiresAt: now + cacheTtlMs, quotes: results };
+  const hasValue = results.some((quote) => quote.value !== null);
+  return NextResponse.json({ quotes: results, cached: false, fetchedAt: now }, { status: hasValue ? 200 : 502, headers: { "Cache-Control": "public, max-age=55, stale-while-revalidate=10" } });
 }
