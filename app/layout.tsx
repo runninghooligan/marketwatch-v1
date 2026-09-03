@@ -13,8 +13,8 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "MarketPulse — Today’s Top Stock Movers",
-  description: "A focused dashboard for tracking the market's biggest movers.",
+  title: "MarketPulse — Trending Tickers for Research",
+  description: "Recent stock price and volume snapshots to guide further research.",
   icons: {
     icon: "/favicon.svg",
     shortcut: "/favicon.svg",
