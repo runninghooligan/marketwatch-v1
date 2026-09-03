@@ -1,5 +1,4 @@
 import { NextResponse } from "next/server";
-import yahooFinance from "yahoo-finance2";
 
 export async function massiveFetch<T>(endpoint: string, params: Record<string, string> = {}): Promise<T> {
   const apiKey = process.env.MASSIVE_API_KEY;
@@ -22,35 +21,6 @@ export async function massiveFetch<T>(endpoint: string, params: Record<string, s
   }
 
   return payload as T;
-}
-
-export async function fetchYahooQuote(symbol: string) {
-  try {
-    console.log(`[YahooFinance] Fetching quote for ${symbol}...`);
-    
-    // For yahoo-finance2, the default export is the instance itself.
-    // The "is not a constructor" error happens when we try 'new yahooFinance.YahooFinance()'
-    // because the package exports the singleton instance by default.
-    const quote = await yahooFinance.quote(symbol);
-    
-    if (!quote) {
-      console.warn(`[YahooFinance] No quote returned for ${symbol}`);
-      return null;
-    }
-
-    console.log(`[YahooFinance] Success for ${symbol}: Price=${quote.regularMarketPrice}, Vol=${quote.regularMarketVolume}`);
-    return {
-      price: quote.regularMarketPrice,
-      volume: quote.regularMarketVolume,
-    };
-  } catch (e: any) {
-    console.error(`[YahooFinance] Error fetching ${symbol}:`, {
-      message: e.message,
-      stack: e.stack,
-      details: e.details || "No additional details"
-    });
-    return null;
-  }
 }
 
 export function easternDate() {

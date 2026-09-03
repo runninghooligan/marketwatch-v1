@@ -3,7 +3,7 @@ import { NextResponse } from "next/server";
 export const dynamic = "force-dynamic";
 type Json = Record<string, unknown>;
 let cache = new Map<string, { expiresAt: number; data: Json }>();
-const ttl = 55_000;
+const ttl = 24 * 60 * 60 * 1000;
 
 async function fetchJson(url: URL) {
   const response = await fetch(url, { cache: "no-store" });
@@ -29,5 +29,5 @@ export async function GET(_request: Request, { params }: { params: { symbol: str
   const news = newsResult.status === "fulfilled" ? ((newsResult.value.results as Array<{ title?: string; article_url?: string; published_utc?: string; publisher?: { name?: string } }> | undefined) ?? []).map((item) => ({ title: item.title ?? "Untitled market update", url: item.article_url ?? "#", publishedAt: item.published_utc ?? "", source: item.publisher?.name ?? "Market news" })) : [];
   const data = { symbol, detail, previousClose: bar, news, fetchedAt: now };
   cache.set(symbol, { expiresAt: now + ttl, data });
-  return NextResponse.json({ ...data, cached: false }, { headers: { "Cache-Control": "public, max-age=55, stale-while-revalidate=10" } });
+  return NextResponse.json({ ...data, cached: false }, { headers: { "Cache-Control": "public, max-age=86400, stale-while-revalidate=3600" } });
 }
